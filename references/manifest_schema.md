@@ -10,6 +10,15 @@ Without a manifest, every run of the skill starts from zero. With one:
 - You get an audit trail: which prompt produced which file, which review approved it
 - A client handoff includes a single file listing every AI-generated asset with provenance
 
+## Implementation status
+
+As of v1.2, **no script in this repo writes the manifest**. The schema below
+defines the format the writer should produce; the writer itself is tracked as
+an open task in CONTRIBUTING.md. Today, `generate_asset.py` writes a per-file
+`<asset>.meta.json` sidecar instead, and `fetch_icon.py` writes nothing
+beyond the SVG itself. Any tool that needs an audit trail today must roll
+its own.
+
 ## Schema (v1)
 
 ```json

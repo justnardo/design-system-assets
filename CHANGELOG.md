@@ -21,7 +21,6 @@ Small but real fixes from the second review pass. No code changes to the runtime
 - 7 reference docs (asset_routing, prompt_engineering, provider_capabilities, review_rubric, manifest_schema, byok_setup, scope_questions)
 - 2 template files (DESIGN_md_template.md, asset_plan.example.json)
 - 1 test doc (TESTS.md)
-- 19 files total in the package
 
 ---
 

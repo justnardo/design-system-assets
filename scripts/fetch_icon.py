@@ -26,13 +26,14 @@ Usage:
 """
 
 import argparse
-import json
 import os
 import re
 import sys
 from pathlib import Path
 from urllib.error import HTTPError, URLError
-from urllib.request import urlopen, Request
+from urllib.request import urlopen
+
+from _common import load_json_file, post_json
 
 
 LUCIDE_SOURCES = [
@@ -203,31 +204,28 @@ def llm_assisted_icon_search(query: str, api_key: str) -> str | None:
         "If you cannot determine a good match, return 'none'."
     )
     user_prompt = f"What is the best Lucide icon name for this request: '{query}'?"
-    
+
     model = os.environ.get("ANTHROPIC_MODEL", "claude-3-5-haiku-latest")
-    body = json.dumps({
-        "model": model,
-        "max_tokens": 50,
-        "system": system_prompt,
-        "messages": [{"role": "user", "content": user_prompt}],
-    }).encode("utf-8")
-
-    req = Request(
-        "https://api.anthropic.com/v1/messages",
-        data=body,
-        headers={
-            "x-api-key": api_key,
-            "anthropic-version": "2023-06-01",
-            "content-type": "application/json",
-        },
-        method="POST",
-    )
-
     try:
-        with urlopen(req, timeout=10) as resp:
-            payload = json.loads(resp.read().decode("utf-8"))
-    except Exception:
-        return None  # Fail gracefully if API is down or key is bad
+        payload = post_json(
+            "https://api.anthropic.com/v1/messages",
+            body={
+                "model": model,
+                "max_tokens": 50,
+                "system": system_prompt,
+                "messages": [{"role": "user", "content": user_prompt}],
+            },
+            headers={
+                "x-api-key": api_key,
+                "anthropic-version": "2023-06-01",
+            },
+            timeout=10,
+            provider_name="Anthropic",
+        )
+    except RuntimeError:
+        # Network / HTTP / timeout failure. The fallback is degraded, not
+        # broken — let the caller try search_icons() as a Plan B.
+        return None
 
     content = payload.get("content", [])
     for block in content:
@@ -317,7 +315,7 @@ def main() -> int:
         elif args.color == "currentColor":
             color = None
         elif args.tokens:
-            tokens = json.loads(Path(args.tokens).read_text())
+            tokens = load_json_file(args.tokens, label="tokens file")
             resolved = resolve_color_from_tokens(tokens, args.color)
             if resolved:
                 color = resolved

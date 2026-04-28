@@ -1,7 +1,13 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Smoke test for route_asset.py. Each line: prompt | expected_type | expected_route
+#
+# Routing/refuse cases legitimately exit non-zero (1=unintelligible, 2=refused),
+# so we capture stdout regardless of exit code, then validate the JSON.
 
-set -e
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ROUTER="$SCRIPT_DIR/../scripts/route_asset.py"
 
 declare -a tests=(
   "hero photo for about page|photo|generate_asset.py"
@@ -32,9 +38,32 @@ FAIL=0
 
 for test in "${tests[@]}"; do
   IFS='|' read -r prompt expected_type expected_route <<< "$test"
-  result=$(python scripts/route_asset.py --request "$prompt" 2>/dev/null)
-  actual_type=$(echo "$result" | python -c "import json,sys; print(json.loads(sys.stdin.read())['asset_type'])")
-  actual_route=$(echo "$result" | python -c "import json,sys; print(json.loads(sys.stdin.read())['route'])")
+
+  # Capture stdout once. Refuse cases exit 2; treat any exit code as
+  # acceptable here — what matters is the JSON content on stdout.
+  result=$(python "$ROUTER" --request "$prompt" 2>/dev/null) || true
+
+  # Validate JSON and extract both fields in a single Python invocation.
+  # If parsing fails, mark this case FAIL — don't silently fall through to
+  # an empty-string comparison.
+  if ! parsed=$(printf '%s' "$result" | python3 -c '
+import json, sys
+try:
+    d = json.loads(sys.stdin.read())
+except (json.JSONDecodeError, ValueError):
+    sys.exit(2)
+print(d.get("asset_type", ""))
+print(d.get("route", ""))
+'); then
+    echo "FAIL: $prompt"
+    echo "      router did not produce valid JSON"
+    echo "      raw: ${result:0:200}"
+    FAIL=$((FAIL + 1))
+    continue
+  fi
+
+  actual_type=$(printf '%s' "$parsed" | sed -n '1p')
+  actual_route=$(printf '%s' "$parsed" | sed -n '2p')
 
   if [ "$actual_type" = "$expected_type" ] && [ "$actual_route" = "$expected_route" ]; then
     echo "PASS: $prompt -> $actual_type"
@@ -49,4 +78,4 @@ done
 
 echo
 echo "Results: $PASS passed, $FAIL failed"
-exit $FAIL
+exit "$FAIL"
