@@ -27,11 +27,12 @@ Usage:
 
 import argparse
 import json
+import os
 import re
 import sys
 from pathlib import Path
 from urllib.error import HTTPError, URLError
-from urllib.request import urlopen
+from urllib.request import urlopen, Request
 
 
 LUCIDE_SOURCES = [
@@ -193,6 +194,50 @@ def search_icons(query: str) -> list[str]:
     return matches
 
 
+def llm_assisted_icon_search(query: str, api_key: str) -> str | None:
+    """Use Claude to map an ambiguous query to a standard Lucide icon name."""
+    system_prompt = (
+        "You are an expert at mapping user requests to Lucide icon names. "
+        "Lucide icons use lowercase, kebab-case names like 'shopping-cart', 'arrow-right', 'user'. "
+        "Return ONLY the exact icon name, nothing else. No quotes, no markdown, no explanation. "
+        "If you cannot determine a good match, return 'none'."
+    )
+    user_prompt = f"What is the best Lucide icon name for this request: '{query}'?"
+    
+    model = os.environ.get("ANTHROPIC_MODEL", "claude-3-5-haiku-latest")
+    body = json.dumps({
+        "model": model,
+        "max_tokens": 50,
+        "system": system_prompt,
+        "messages": [{"role": "user", "content": user_prompt}],
+    }).encode("utf-8")
+
+    req = Request(
+        "https://api.anthropic.com/v1/messages",
+        data=body,
+        headers={
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+        },
+        method="POST",
+    )
+
+    try:
+        with urlopen(req, timeout=10) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+    except Exception:
+        return None  # Fail gracefully if API is down or key is bad
+
+    content = payload.get("content", [])
+    for block in content:
+        if block.get("type") == "text":
+            name = block.get("text", "").strip().lower()
+            if name and name != "none":
+                return name
+    return None
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Fetch a themed SVG icon from Lucide.")
     parser.add_argument("name", nargs="?", help="Icon name or keyword (e.g., 'menu', 'cart')")
@@ -236,11 +281,33 @@ def main() -> int:
     try:
         svg = fetch_lucide(icon_name)
     except ValueError as e:
-        print(f"ERROR: {e}", file=sys.stderr)
-        suggestions = search_icons(args.name)
-        if suggestions:
-            print(f"Did you mean: {', '.join(suggestions[:5])}?", file=sys.stderr)
-        return 1
+        api_key = os.environ.get("ANTHROPIC_API_KEY")
+        if api_key:
+            print(f"Icon '{icon_name}' not found. Asking Claude for a suggestion...", file=sys.stderr)
+            suggested = llm_assisted_icon_search(args.name, api_key)
+            if suggested and suggested != icon_name:
+                print(f"Claude suggested: '{suggested}'. Trying that...", file=sys.stderr)
+                try:
+                    svg = fetch_lucide(suggested)
+                    icon_name = suggested
+                except ValueError:
+                    print(f"ERROR: Suggestion '{suggested}' also not found.", file=sys.stderr)
+                    suggestions = search_icons(args.name)
+                    if suggestions:
+                        print(f"Did you mean: {', '.join(suggestions[:5])}?", file=sys.stderr)
+                    return 1
+            else:
+                print(f"ERROR: {e}", file=sys.stderr)
+                suggestions = search_icons(args.name)
+                if suggestions:
+                    print(f"Did you mean: {', '.join(suggestions[:5])}?", file=sys.stderr)
+                return 1
+        else:
+            print(f"ERROR: {e}", file=sys.stderr)
+            suggestions = search_icons(args.name)
+            if suggestions:
+                print(f"Did you mean: {', '.join(suggestions[:5])}?", file=sys.stderr)
+            return 1
 
     # Resolve color
     color: str | None = None

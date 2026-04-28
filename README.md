@@ -17,13 +17,19 @@ If you ship a project using this skill and want to contribute a before/after, op
 
 ## Installation
 
-This is a Claude Code skill. Install it like any other:
+This is a Claude Code skill. You can install it automatically using the provided install script:
 
 ```bash
-# Clone or download this repo, then:
-cp -r design-system-assets ~/.claude/skills/
+# Clone or download this repo, then run:
+./install.sh
 
 # Restart Claude Code to pick up the new skill.
+```
+
+Alternatively, you can install it manually by copying the directory:
+
+```bash
+cp -r design-system-assets ~/.claude/skills/
 ```
 
 Or as a `.skill` file:
