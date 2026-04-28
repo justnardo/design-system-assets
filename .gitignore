@@ -1,0 +1,38 @@
+# API keys — NEVER commit
+.env
+.env.local
+.env.*.local
+
+# Generated asset cache (per-project, regenerable, often large)
+.asset-cache/
+*.meta.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+venv/
+.venv/
+env/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Build artifacts
+dist/
+build/
+*.skill
+
+# Logs
+*.log

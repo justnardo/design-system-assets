@@ -1,0 +1,30 @@
+{
+  "$comment": "Sample asset plan for the cost estimator. Run: python scripts/estimate_cost.py --plan templates/asset_plan.example.json. This example reflects a realistic 5-page agency client site (Viceroy Elderly Care Services) with a mix of paid raster generation, free SVG icons, and one decorative SVG.",
+  "project": "Viceroy Elderly Care Services",
+  "requests": [
+    "hero photo for home page showing warm welcome moment",
+    "hero photo for about page with elderly resident in garden",
+    "hero photo for services page with caregiver and resident together",
+    "hero photo for contact page warm interior shot",
+    "Open Graph share card for homepage",
+    "Open Graph share card for services page",
+    "spot illustration for our values section",
+    "spot illustration for testimonials section",
+    "menu icon",
+    "phone icon",
+    "email icon",
+    "calendar icon",
+    "heart icon",
+    "star icon",
+    "search icon",
+    "user profile icon",
+    "decorative wave divider"
+  ],
+  "regen_assumption": 1.3,
+  "review_per_asset": true,
+  "$notes": [
+    "regen_assumption=1.3 budgets for ~30% of raster generations needing one regeneration loop. For brand-strict clients this can climb to 1.5; for prototyping 1.1 is fine.",
+    "review_per_asset=true includes Claude vision review costs in the estimate. Set false if you intend to skip review and review the assets yourself.",
+    "Run: python scripts/estimate_cost.py --plan templates/asset_plan.example.json"
+  ]
+}
