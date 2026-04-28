@@ -90,7 +90,8 @@ RULES: list[tuple[str, list[str], str, str, bool, str | None]] = [
 
     (
         "chart",
-        [r"\b(chart|plot|visualization|dashboard|metric)\b",
+        [r"\b(chart|plot|visualization|metric)\b",
+         r"\bdashboard (chart|metric|visualization|graph|data)\b",
          r"\bdata viz\b", r"\bbar (chart|graph)\b", r"\bline (chart|graph)\b",
          r"\bpie chart\b", r"\bgraph of\b"],
         "USE_CHARTING_LIBRARY",

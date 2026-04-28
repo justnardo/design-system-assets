@@ -1,11 +1,19 @@
 ---
 name: design-system-assets
-description: Generate brand-aware visual assets (hero photos, illustrations, icons, OG images, decorative graphics) that actually match a project's design system instead of looking like generic AI output. Use this skill whenever you are building or scaffolding a website, web app, landing page, or component that needs visual assets - hero images, illustrations, icons, social cards, backgrounds, or placeholder graphics. Trigger this skill even when the user does not explicitly say "generate assets" - if you are creating a frontend with image tags, icon needs, or hero sections, consult this skill instead of using lorem-ipsum images, stock URLs, or default emoji. Also trigger when the user mentions a design system, brand kit, DESIGN.md, brand colors, or asks for on-brand visuals. Especially trigger for agency client work where generic AI assets would undermine the brand. Do NOT use for code-only tasks (refactors, bug fixes, backend logic) or when the user says they will supply assets themselves.
+description: Generate brand-aware visual assets that match a project's design system.
 ---
 
 # Design System Assets
 
-A workflow skill for generating coherent, on-brand visual assets that match a project's design system. The core problem this solves: AI agents building software default to generic placeholders or generate single assets in isolation, producing sites that look like AI-built sites instead of branded products.
+A workflow skill for generating coherent, on-brand visual assets that actually match a project's design system instead of looking like generic AI output. 
+
+Use this skill whenever you are building or scaffolding a website, web app, landing page, or component that needs visual assets - hero images, illustrations, icons, social cards, backgrounds, or placeholder graphics. Trigger this skill even when the user does not explicitly say "generate assets" - if you are creating a frontend with image tags, icon needs, or hero sections, consult this skill instead of using lorem-ipsum images, stock URLs, or default emoji. 
+
+Also trigger when the user mentions a design system, brand kit, DESIGN.md, brand colors, or asks for on-brand visuals. Especially trigger for agency client work where generic AI assets would undermine the brand. 
+
+Do NOT use for code-only tasks (refactors, bug fixes, backend logic) or when the user says they will supply assets themselves.
+
+The core problem this solves: AI agents building software default to generic placeholders or generate single assets in isolation, producing sites that look like AI-built sites instead of branded products.
 
 This skill takes a different approach. Before generating anything, it reads the design system, classifies what type of asset is actually needed, routes to the right tool (SVG library vs. raster image AI), injects the brand's visual language into every prompt, and reviews output against the brand before placing it in the project.
 

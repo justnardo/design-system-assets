@@ -9,7 +9,7 @@ The skill is structured around five steps: parse the design system, route the as
 ## Setup for development
 
 ```bash
-git clone https://github.com/<your-fork>/design-system-assets.git
+git clone https://github.com/justnardo/design-system-assets.git
 cd design-system-assets
 
 # All scripts are pure-stdlib Python 3.10+, no pip install needed
