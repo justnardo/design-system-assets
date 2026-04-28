@@ -93,6 +93,14 @@ This skill is opinionated about a few things:
 4. **Review before placing.** Every raster asset gets scored against the brand; failures regenerate or escalate.
 5. **Bring your own keys.** No hosted service, no middleman, no rate-limited free tier. You pay providers directly at list price.
 
+## Testing
+
+Contributors can verify the routing logic is intact by running the test suite:
+
+```bash
+bash tests/test_router.sh
+```
+
 ## Roadmap
 
 - [ ] Future OpenAI image model support as new production models become available
