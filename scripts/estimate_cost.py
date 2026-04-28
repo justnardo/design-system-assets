@@ -45,12 +45,13 @@ flags if you want to recompute with different numbers.
 
 import argparse
 import json
-import re
 import sys
 from pathlib import Path
 
-# Import the classifier from sibling script
+# Import sibling scripts. They share a directory; making it importable lets
+# us reuse the classifier without subprocess overhead.
 sys.path.insert(0, str(Path(__file__).parent))
+from _common import load_json_file  # noqa: E402
 from route_asset import classify  # noqa: E402
 
 
@@ -230,7 +231,7 @@ def main() -> int:
     regen = args.regen
 
     if args.plan:
-        plan = json.loads(Path(args.plan).read_text())
+        plan = load_json_file(args.plan, label="plan file")
         requests.extend(plan.get("requests", []))
         if "regen_assumption" in plan:
             regen = plan["regen_assumption"]

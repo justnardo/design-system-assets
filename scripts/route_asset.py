@@ -37,6 +37,15 @@ import sys
 from dataclasses import dataclass, asdict
 
 
+HARD_REFUSE_ROUTES = frozenset({"DO_NOT_GENERATE", "USE_CHARTING_LIBRARY"})
+
+
+def is_hard_refuse(asset_type: str, route: str) -> bool:
+    """A request is a hard refuse if its type is a refuse_* category or its
+    route points to a non-generation outcome (charts, do-not-generate)."""
+    return asset_type.startswith("refuse_") or route in HARD_REFUSE_ROUTES
+
+
 @dataclass
 class Route:
     request: str
@@ -220,9 +229,7 @@ def classify(request: str) -> Route:
                     needs_api=needs_api,
                     reason=reason,
                     aspect_hint=aspect,
-                    refuse=asset_type.startswith("refuse_") or route in (
-                        "DO_NOT_GENERATE", "USE_CHARTING_LIBRARY",
-                    ),
+                    refuse=is_hard_refuse(asset_type, route),
                 )
 
     return Route(
@@ -252,9 +259,8 @@ def main() -> int:
     print(json.dumps(output, indent=2))
 
     if route.refuse:
-        return 2 if route.asset_type.startswith("refuse_") or route.route in (
-            "DO_NOT_GENERATE", "USE_CHARTING_LIBRARY",
-        ) else 1
+        # 2 = hard refuse (real person, real product, chart). 1 = unintelligible.
+        return 2 if is_hard_refuse(route.asset_type, route.route) else 1
 
     return 0
 

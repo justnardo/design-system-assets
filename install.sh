@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
 
-# Exit immediately if a command exits with a non-zero status.
-set -e
+# Strict mode: fail on errors, undefined vars, and broken pipes.
+set -euo pipefail
 
 echo "Installing design-system-assets skill..."
 
+# Resolve paths relative to this script so it works regardless of cwd.
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
 # Ensure the Claude skills directory exists
-SKILLS_DIR="$HOME/.claude/skills"
+SKILLS_DIR="${HOME:?HOME must be set}/.claude/skills"
 mkdir -p "$SKILLS_DIR"
 
 # Define the target directory for this skill
@@ -20,7 +23,7 @@ fi
 
 # Copy the repository contents to the target directory
 echo "Copying files to $TARGET_DIR..."
-cp -r . "$TARGET_DIR"
+cp -r "$SCRIPT_DIR/." "$TARGET_DIR"
 
 # Clean up any git or local cache files from the installed copy
 rm -rf "$TARGET_DIR/.git" 2>/dev/null || true

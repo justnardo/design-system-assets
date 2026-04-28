@@ -39,8 +39,8 @@ import os
 import sys
 from pathlib import Path
 from typing import Any
-from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
+
+from _common import load_json_file, post_json
 
 
 CLAUDE_API_URL = "https://api.anthropic.com/v1/messages"
@@ -49,6 +49,14 @@ CLAUDE_API_URL = "https://api.anthropic.com/v1/messages"
 # or Haiku 4.5 (cheapest, lower quality). See provider_capabilities.md.
 DEFAULT_REVIEW_MODEL = "claude-sonnet-4-6"
 ANTHROPIC_VERSION = "2023-06-01"
+
+SCORE_KEYS = (
+    "color_match",
+    "style_consistency",
+    "subject_correctness",
+    "technical_quality",
+    "brand_fit",
+)
 
 
 # Approval mode thresholds. Each mode defines (min_per_dim, min_avg) for
@@ -170,47 +178,34 @@ def call_claude_vision(
 ) -> str:
     """Call Claude with the image attached. Returns the model's text response."""
     chosen_model = model or os.environ.get("ANTHROPIC_MODEL", DEFAULT_REVIEW_MODEL)
-    body = json.dumps({
-        "model": chosen_model,
-        "max_tokens": 1024,
-        "system": REVIEW_SYSTEM_PROMPT,
-        "messages": [{
-            "role": "user",
-            "content": [
-                {
-                    "type": "image",
-                    "source": {
-                        "type": "base64",
-                        "media_type": media_type,
-                        "data": image_b64,
-                    },
-                },
-                {"type": "text", "text": user_prompt},
-            ],
-        }],
-    }).encode("utf-8")
-
-    req = Request(
+    payload = post_json(
         CLAUDE_API_URL,
-        data=body,
+        body={
+            "model": chosen_model,
+            "max_tokens": 1024,
+            "system": REVIEW_SYSTEM_PROMPT,
+            "messages": [{
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": media_type,
+                            "data": image_b64,
+                        },
+                    },
+                    {"type": "text", "text": user_prompt},
+                ],
+            }],
+        },
         headers={
             "x-api-key": api_key,
             "anthropic-version": ANTHROPIC_VERSION,
-            "content-type": "application/json",
         },
-        method="POST",
+        timeout=120,
+        provider_name="Anthropic",
     )
-
-    try:
-        with urlopen(req, timeout=120) as resp:
-            payload = json.loads(resp.read().decode("utf-8"))
-    except HTTPError as e:
-        err_body = e.read().decode("utf-8", errors="replace")
-        raise RuntimeError(
-            f"Anthropic API returned {e.code}: {err_body[:500]}"
-        ) from e
-    except URLError as e:
-        raise RuntimeError(f"Network error calling Claude: {e}") from e
 
     content = payload.get("content", [])
     for block in content:
@@ -248,21 +243,33 @@ def parse_review_response(text: str) -> dict[str, Any]:
         ) from e
 
 
+def extract_scores(scores: dict[str, Any]) -> list[float] | None:
+    """
+    Return the 5 score values in canonical order, or None if any required
+    dimension is missing or non-numeric. A None return means the model
+    response was malformed; callers should escalate rather than guess at
+    a verdict from a partial score set.
+    """
+    values: list[float] = []
+    for k in SCORE_KEYS:
+        v = scores.get(k)
+        if not isinstance(v, (int, float)) or isinstance(v, bool):
+            return None
+        values.append(float(v))
+    return values
+
+
 def compute_verdict(review: dict[str, Any], mode: str = "strict") -> str:
     """Apply the verdict rules using the chosen approval mode."""
     if review.get("hard_fail_reason", "").strip():
         return "escalate_to_human"
 
-    scores = review.get("scores", {})
-    if not scores:
+    values = extract_scores(review.get("scores", {}))
+    if values is None:
+        # Truncated / malformed score set — never approve on partial data.
         return "escalate_to_human"
 
     thresholds = APPROVAL_MODES.get(mode, APPROVAL_MODES["strict"])
-    values = [
-        scores.get(k, 0)
-        for k in ("color_match", "style_consistency",
-                  "subject_correctness", "technical_quality", "brand_fit")
-    ]
 
     # Anything beneath the regen_floor is an immediate regenerate.
     if any(v < thresholds["regen_floor"] for v in values):
@@ -306,11 +313,6 @@ def main() -> int:
         print(f"ERROR: asset not found: {asset_path}", file=sys.stderr)
         return 1
 
-    tokens_path = Path(args.tokens)
-    if not tokens_path.exists():
-        print(f"ERROR: tokens file not found: {tokens_path}", file=sys.stderr)
-        return 1
-
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
         print(
@@ -320,7 +322,7 @@ def main() -> int:
         )
         return 3
 
-    tokens = json.loads(tokens_path.read_text())
+    tokens = load_json_file(args.tokens, label="tokens file")
     image_b64, media_type = encode_image_to_base64(asset_path)
     user_prompt = build_user_prompt(tokens, args.intent)
 
@@ -341,16 +343,16 @@ def main() -> int:
         print(json.dumps(result, indent=2))
     else:
         scores = review.get("scores", {})
-        avg = sum(scores.values()) / len(scores) if scores else 0
+        # Average only over the canonical 5 dimensions. If any are missing,
+        # report N/A — never an inflated mean over a partial response.
+        validated = extract_scores(scores)
+        avg_str = f"{sum(validated) / len(validated):.1f}/10" if validated else "N/A (incomplete scores)"
         print(f"Asset: {asset_path}")
         print(f"Mode: {args.mode}")
         print(f"Verdict: {verdict.upper()}")
-        print(f"Average score: {avg:.1f}/10")
-        print(f"  color_match:         {scores.get('color_match', 'N/A')}")
-        print(f"  style_consistency:   {scores.get('style_consistency', 'N/A')}")
-        print(f"  subject_correctness: {scores.get('subject_correctness', 'N/A')}")
-        print(f"  technical_quality:   {scores.get('technical_quality', 'N/A')}")
-        print(f"  brand_fit:           {scores.get('brand_fit', 'N/A')}")
+        print(f"Average score: {avg_str}")
+        for k in SCORE_KEYS:
+            print(f"  {k + ':':21s}{scores.get(k, 'N/A')}")
         print(f"\nObservations: {review.get('observations', '')}")
         if review.get("regenerate_advice"):
             print(f"\nRegenerate advice: {review['regenerate_advice']}")

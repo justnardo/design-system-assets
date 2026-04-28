@@ -41,8 +41,8 @@ import sys
 import time
 from pathlib import Path
 from typing import Any
-from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
+
+from _common import get_bytes, load_json_file, post_json
 
 
 ASSET_TYPES = {"photo", "illustration", "pattern", "og", "logo_concept"}
@@ -164,36 +164,16 @@ def call_openai_image(
     """
     Call OpenAI's image generation endpoint. Returns raw PNG bytes.
 
-    Uses the /v1/images/generations endpoint. We hit it with stdlib
-    urllib so the skill has zero install footprint beyond Python.
+    Uses the /v1/images/generations endpoint with stdlib urllib so the
+    skill has zero install footprint beyond Python.
     """
-    body = json.dumps({
-        "model": model,
-        "prompt": prompt,
-        "size": size,
-        "n": 1,
-    }).encode("utf-8")
-
-    req = Request(
+    payload = post_json(
         "https://api.openai.com/v1/images/generations",
-        data=body,
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
-        method="POST",
+        body={"model": model, "prompt": prompt, "size": size, "n": 1},
+        headers={"Authorization": f"Bearer {api_key}"},
+        timeout=180,
+        provider_name="OpenAI",
     )
-
-    try:
-        with urlopen(req, timeout=180) as resp:
-            payload = json.loads(resp.read().decode("utf-8"))
-    except HTTPError as e:
-        err_body = e.read().decode("utf-8", errors="replace")
-        raise RuntimeError(
-            f"OpenAI API returned {e.code}: {err_body[:500]}"
-        ) from e
-    except URLError as e:
-        raise RuntimeError(f"Network error calling OpenAI: {e}") from e
 
     data = payload.get("data", [])
     if not data:
@@ -205,8 +185,7 @@ def call_openai_image(
 
     # Some models return a URL instead. Fetch it.
     if "url" in item:
-        with urlopen(item["url"], timeout=60) as r:
-            return r.read()
+        return get_bytes(item["url"])
 
     raise RuntimeError(f"OpenAI response missing image data: {item}")
 
@@ -220,38 +199,24 @@ def call_gemini_image(
     Call Gemini's image generation. Returns raw PNG bytes.
 
     Uses the REST API directly with stdlib so we don't require the
-    google-genai package.
+    google-genai package. The API key is sent via the x-goog-api-key
+    header — never as a URL query parameter, which would leak it into
+    proxy logs and stack traces.
     """
-    body = json.dumps({
-        "contents": [{
-            "parts": [{"text": prompt}],
-        }],
-        "generationConfig": {
-            "responseModalities": ["IMAGE"],
-        },
-    }).encode("utf-8")
-
     url = (
         f"https://generativelanguage.googleapis.com/v1beta/models/"
-        f"{model}:generateContent?key={api_key}"
+        f"{model}:generateContent"
     )
-    req = Request(
+    payload = post_json(
         url,
-        data=body,
-        headers={"Content-Type": "application/json"},
-        method="POST",
+        body={
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {"responseModalities": ["IMAGE"]},
+        },
+        headers={"x-goog-api-key": api_key},
+        timeout=180,
+        provider_name="Gemini",
     )
-
-    try:
-        with urlopen(req, timeout=180) as resp:
-            payload = json.loads(resp.read().decode("utf-8"))
-    except HTTPError as e:
-        err_body = e.read().decode("utf-8", errors="replace")
-        raise RuntimeError(
-            f"Gemini API returned {e.code}: {err_body[:500]}"
-        ) from e
-    except URLError as e:
-        raise RuntimeError(f"Network error calling Gemini: {e}") from e
 
     candidates = payload.get("candidates", [])
     for cand in candidates:
@@ -295,12 +260,7 @@ def main() -> int:
 
     asset_type = args.type or "photo"  # anchor defaults to photo register
 
-    tokens_path = Path(args.tokens)
-    if not tokens_path.exists():
-        print(f"ERROR: tokens file not found: {tokens_path}", file=sys.stderr)
-        return 1
-
-    tokens = json.loads(tokens_path.read_text())
+    tokens = load_json_file(args.tokens, label="tokens file")
     full_prompt = build_full_prompt(args.prompt, tokens, asset_type, is_anchor=args.anchor)
 
     # Pick provider
